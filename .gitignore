@@ -1,0 +1,10 @@
+# Build directories
+build/
+build_tmp/
+
+# Qt/CMake generated
+moc_*.cpp
+qrc_*.cpp
+
+# Runtime
+nohup.out

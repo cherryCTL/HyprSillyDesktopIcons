@@ -1,0 +1,36 @@
+/* Oh My Desktop - only desktop-specific overrides; everything else uses the system theme */
+
+* {
+    font-family: "MS Sans Serif", "Tahoma", sans-serif;
+    font-size: 8pt;
+}
+
+QToolTip {
+    background-color: #ffffe1;
+    color: #000000;
+    border: 1px solid #808080;
+    padding: 2px;
+    font-size: 8pt;
+}
+
+QWidget#DesktopWindow {
+    background: transparent;
+}
+
+QWidget#DesktopScene {
+    background: transparent;
+}
+
+/* ── Properties Dialog banner (keep the gradient) ───────────────── */
+
+#PropBanner {
+    background: qlineargradient(x1:0, y1:0, x2:1, y2:0,
+                                stop:0 #000080, stop:1 #1084d0);
+}
+
+#PropBannerText {
+    color: #ffffff;
+    font-size: 10pt;
+    font-weight: bold;
+}
+
