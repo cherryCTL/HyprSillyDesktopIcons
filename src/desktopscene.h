@@ -13,6 +13,9 @@
 #include <QLabel>
 #include <QTimer>
 #include <QKeyEvent>
+#include <QDragEnterEvent>
+#include <QDragMoveEvent>
+#include <QDropEvent>
 #include "desktopconstants.h"
 
 class DesktopIcon;
@@ -37,6 +40,9 @@ protected:
     void paintEvent(QPaintEvent *event) override;
     void keyPressEvent(QKeyEvent *event) override;
     bool eventFilter(QObject *obj, QEvent *e) override;
+    void dragEnterEvent(QDragEnterEvent *event) override;
+    void dragMoveEvent(QDragMoveEvent *event) override;
+    void dropEvent(QDropEvent *event) override;
 
 private slots:
     void refresh();
@@ -59,6 +65,12 @@ private slots:
     void onShowProperties();
     void onIconContextMenuRequested(DesktopIcon *icon, QPoint scenePos);
     void closeAllMenus();
+
+    // Clipboard
+    void copySelectedIcons();
+    void cutSelectedIcons();
+    void pasteFromClipboard();
+    void updateCutIconAppearance();
 
 private:
     QString iconKey(DesktopIcon *icon) const;
@@ -103,6 +115,8 @@ private:
     QHash<QString, QPoint>          m_positions;          // filename -> snapped pixel pos
     QHash<QPair<int,int>, QString>  m_occupiedCells;      // grid cell -> filename
     QHash<DesktopIcon*, QPoint>     m_dragStartPositions; // for multi-icon drag
+    bool                            m_clipboardCutMode = false; // true = cut, false = copy
+    QStringList                     m_clipboardPaths;   // absolute paths from last copy/cut
     QFileSystemWatcher *m_watcher;
     QScreen            *m_screen    = nullptr;
     QWidget            *m_dragOverlay = nullptr; // ghost overlay raised above icons

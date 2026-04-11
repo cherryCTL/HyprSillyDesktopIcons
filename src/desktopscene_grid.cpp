@@ -110,8 +110,8 @@ void DesktopScene::applyIconSize(int newSize)
     //   - If the icon's old cell still fits: keep it there (no move).
     //   - If the old cell is out of bounds: project the icon's CURRENT widget
     //     position onto the new grid.  This handles both cases:
-    //       a) Grid shrank  → icon is pushed to a new cell.
-    //       b) Grid expanded → icon was previously pushed; re-projecting from
+    //       a) Grid shrank, icon is pushed to a new cell.
+    //       b) Grid expanded, icon was previously pushed; re-projecting from
     //          widget pos lets it drift back toward its original column.
     //
     // IMPORTANT: we do NOT update m_positions here.  m_positions stores the

@@ -13,8 +13,10 @@
 #include <QSettings>
 #include <QProcess>
 #include <QApplication>
+#include <QClipboard>
 #include <QInputDialog>
 #include <QMessageBox>
+#include <QMimeData>
 #include <QScreen>
 #include <QStandardPaths>
 #include <QTimer>
@@ -125,7 +127,7 @@ DesktopScene::DesktopScene(QScreen *screen, QWidget *parent)
             m_watcher->addPath(m_desktopPath);
     });
 
-    // In-surface menus (child widgets → same wl_surface, no popup grab)
+    // In-surface menus (child widgets, same wl_surface, no popup grab)
     m_ctxArrangeMenu = new InlineMenu(this);
     m_ctxMenu        = new InlineMenu(this);
     m_iconCtxMenu    = new InlineMenu(this);
@@ -173,8 +175,11 @@ DesktopScene::DesktopScene(QScreen *screen, QWidget *parent)
         m_tooltipWindow->show();
     });
 
-    // Hyprland IPC → desktopscene_ipc.cpp
+    // Hyprland IPC, desktopscene_ipc.cpp
     setupHyprlandIPC();
+
+    // Accept drops from external drag (file manager to desktop)
+    setAcceptDrops(true);
 }
 
 bool DesktopScene::eventFilter(QObject *obj, QEvent *e)
@@ -242,7 +247,7 @@ void DesktopScene::queueSavePositions(int delayMs)
     m_saveTimer->start(qMax(0, delayMs));
 }
 
-// Drag feedback → desktopscene_dragdrop.cpp
+// Drag feedback, desktopscene_dragdrop.cpp
 
 DesktopIcon *DesktopScene::selectedIcon() const
 {
@@ -341,7 +346,7 @@ void DesktopScene::openIconFromKeyboard(DesktopIcon *icon)
     onOpenRequested(icon->fileInfo());
 }
 
-// iconKey, folderDropTargetAt, moveIconIntoFolder → desktopscene_dragdrop.cpp
+// iconKey, folderDropTargetAt, moveIconIntoFolder, desktopscene_dragdrop.cpp
 
 void DesktopScene::loadPositions()
 {
@@ -599,7 +604,7 @@ void DesktopScene::refresh()
     updateIconPreview();
 }
 
-// onIconMoved → desktopscene_dragdrop.cpp
+// onIconMoved, desktopscene_dragdrop.cpp
 
 void DesktopScene::onOpenRequested(const QFileInfo &fileInfo)
 {
@@ -765,6 +770,25 @@ void DesktopScene::onRenameRequested(DesktopIcon *icon)
 void DesktopScene::keyPressEvent(QKeyEvent *event)
 {
     const int key = event->key();
+
+    // Ctrl+C / Ctrl+X / Ctrl+V, clipboard
+    if (event->modifiers() == Qt::ControlModifier) {
+        if (key == Qt::Key_C) {
+            copySelectedIcons();
+            event->accept();
+            return;
+        }
+        if (key == Qt::Key_X) {
+            cutSelectedIcons();
+            event->accept();
+            return;
+        }
+        if (key == Qt::Key_V) {
+            pasteFromClipboard();
+            event->accept();
+            return;
+        }
+    }
 
     if (event->key() == Qt::Key_Delete) {
         const bool permanent = event->modifiers() & Qt::ShiftModifier;
@@ -984,6 +1008,7 @@ void DesktopScene::mouseReleaseEvent(QMouseEvent *event)
 
 void DesktopScene::enterEvent(QEnterEvent *event)
 {
+    m_cursorOnSurface = true;
     QWidget::enterEvent(event);
 }
 
@@ -993,6 +1018,7 @@ void DesktopScene::leaveEvent(QEvent *event)
     // move events via the implicit pointer grab (held button) even when the
     // cursor crosses into another surface (e.g. waybar). Cancelling here would
     // break the drag. The rubber band ends correctly in mouseReleaseEvent.
+    m_cursorOnSurface = false;
     QWidget::leaveEvent(event);
 }
 
@@ -1083,6 +1109,26 @@ void DesktopScene::contextMenuEvent(QContextMenuEvent *event)
     // Rebuild main menu
     menu->clear();
     menu->addSub("New", newMenu);
+
+    // Only show Paste when clipboard has files (internal or system)
+    bool hasClipboard = !m_clipboardPaths.isEmpty();
+    if (!hasClipboard) {
+        const auto *mime = QApplication::clipboard()->mimeData();
+        if (mime && mime->hasUrls()) {
+            for (const QUrl &url : mime->urls()) {
+                if (url.isLocalFile()) {
+                    hasClipboard = true;
+                    break;
+                }
+            }
+        }
+    }
+
+    if (hasClipboard) {
+        menu->addSep();
+        menu->addAction("Paste", [this] { pasteFromClipboard(); });
+    }
+
     menu->addSep();
     menu->addAction("Open in Terminal", [this] { onOpenInTerminal(); });
     menu->addSep();
@@ -1145,6 +1191,9 @@ void DesktopScene::onIconContextMenuRequested(DesktopIcon *icon, QPoint scenePos
     if (!icon->isVirtual()) {
         menu->addAction("Open",   [this, icon] { emit icon->openRequested(icon->fileInfo()); });
         menu->addSep();
+        menu->addAction("Copy",  [this] { copySelectedIcons(); });
+        menu->addAction("Cut",   [this] { cutSelectedIcons(); });
+        menu->addSep();
         menu->addAction("Rename", [this, icon] { emit icon->renameRequested(icon); });
         menu->addAction("Delete", [this, icon] {
             // Ensure this icon is selected so onDeleteKeys includes it
@@ -1187,7 +1236,7 @@ void DesktopScene::onIconContextMenuRequested(DesktopIcon *icon, QPoint scenePos
     menu->popup(scenePos, menuBoundary());
 }
 
-// onIconDragStarted, onIconDragging → desktopscene_dragdrop.cpp
+// onIconDragStarted, onIconDragging, desktopscene_dragdrop.cpp
 
 // ── Desktop actions ───────────────────────────────────────────────────────────
 
@@ -1364,7 +1413,7 @@ void DesktopScene::onShowHiddenToggled()
     refresh();
 }
 
-// arrangeAll → desktopscene_grid.cpp
+// arrangeAll, desktopscene_grid.cpp
 
 void DesktopScene::closeAllMenus()
 {

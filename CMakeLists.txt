@@ -16,6 +16,8 @@ set(SOURCES
     src/desktopscene_grid.cpp
     src/desktopscene_dragdrop.cpp
     src/desktopscene_ipc.cpp
+    src/desktopscene_externaldrag.cpp
+    src/desktopscene_clipboard.cpp
     src/desktopicon.cpp
     src/launcherutil.cpp
     src/propertiesdialog.cpp

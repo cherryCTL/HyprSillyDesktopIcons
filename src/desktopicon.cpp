@@ -234,6 +234,13 @@ void DesktopIcon::setDropTarget(bool on)
     update();
 }
 
+void DesktopIcon::setCutState(bool cut)
+{
+    if (m_cut == cut) return;
+    m_cut = cut;
+    update();
+}
+
 void DesktopIcon::resolveIcon()
 {
     // Invalidate cached rendered icon - it's about to change
@@ -345,6 +352,10 @@ void DesktopIcon::paintEvent(QPaintEvent *)
         p.fillRect(iconRect.adjusted(-2,-2,2,2), QColor(0, 0, 200, 60));
     }
 
+    // Cut state: dim the icon slightly
+    const qreal origOpacity = p.opacity();
+    if (m_cut) p.setOpacity(0.5);
+
     if (m_hasThumbnail) {
         const QSize scaled = m_thumbnail.size().scaled(iconRect.size(), Qt::KeepAspectRatio);
         QRect dst(QPoint(0, 0), scaled);
@@ -385,7 +396,10 @@ void DesktopIcon::paintEvent(QPaintEvent *)
         p.setCompositionMode(QPainter::CompositionMode_SourceOver);
     }
 
-    // ── Label ──────────────────────────────────────────────────────────────
+    // Restore opacity for label drawing
+    if (m_cut) p.setOpacity(origOpacity);
+
+    // ── Label ───────────────────────────────────────────────────────────────
     QFont font(m_fontFamily, m_fontSize);
     p.setFont(font);
     QFontMetrics fm(font);

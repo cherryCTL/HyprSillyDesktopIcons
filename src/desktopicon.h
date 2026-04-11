@@ -44,6 +44,8 @@ public:
     void setLabelFont(const QString &family, int pointSize);
     void setGhost(bool ghost);
     void setDropTarget(bool on);
+    void setCutState(bool cut);
+    bool isCut() const { return m_cut; }
 
 signals:
     void pressed(DesktopIcon *icon, bool ctrlHeld);
@@ -85,6 +87,7 @@ private:
     bool    m_dragging        = false;
     bool    m_ghost           = false;
     bool    m_dropTarget      = false;  // highlighted as drop target
+    bool    m_cut             = false;  // dimmed: icon is in clipboard cut state
     bool    m_hasThumbnail    = false;
     bool    m_ctrlAtPress     = false;
     bool    m_showPreview     = true;
