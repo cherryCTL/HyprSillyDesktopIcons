@@ -19,6 +19,7 @@ set(SOURCES
     src/desktopscene_externaldrag.cpp
     src/desktopscene_clipboard.cpp
     src/desktopicon.cpp
+    src/exeiconutil.cpp
     src/launcherutil.cpp
     src/propertiesdialog.cpp
     src/filepropertiesdialog.cpp
@@ -29,6 +30,7 @@ set(HEADERS
     src/desktopwindow.h
     src/desktopscene.h
     src/desktopicon.h
+    src/exeiconutil.h
     src/launcherutil.h
     src/propertiesdialog.h
     src/filepropertiesdialog.h

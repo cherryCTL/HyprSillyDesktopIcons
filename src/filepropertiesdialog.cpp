@@ -1,5 +1,6 @@
 #include "filepropertiesdialog.h"
 #include "desktopconstants.h"
+#include "exeiconutil.h"
 
 #include <QDialogButtonBox>
 #include <QFile>
@@ -9,6 +10,7 @@
 #include <QGridLayout>
 #include <QGroupBox>
 #include <QHBoxLayout>
+#include <QIcon>
 #include <QLabel>
 #include <QLineEdit>
 #include <QLocale>
@@ -58,9 +60,16 @@ FilePropertiesDialog::FilePropertiesDialog(const QFileInfo &info, QWidget *paren
         bl->setContentsMargins(10, 6, 10, 6);
         bl->setSpacing(10);
 
-        QFileIconProvider prov;
         auto *iconLbl = new QLabel(banner);
-        iconLbl->setPixmap(prov.icon(info).pixmap(32, 32));
+
+        // Try embedded exe icon first, then theme icon as fallback.
+        QPixmap exeIcon = ExeIconUtil::loadEmbeddedIcon(info);
+        if (!exeIcon.isNull()) {
+            iconLbl->setPixmap(exeIcon.scaled(32, 32, Qt::KeepAspectRatio, Qt::SmoothTransformation));
+        } else {
+            QFileIconProvider prov;
+            iconLbl->setPixmap(prov.icon(info).pixmap(32, 32));
+        }
 
         auto *nameLbl = new QLabel(info.fileName(), banner);
         nameLbl->setObjectName("PropBannerText");

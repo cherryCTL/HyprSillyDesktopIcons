@@ -1,6 +1,7 @@
 #include "desktopicon.h"
 #include "launcherutil.h"
 #include "desktopconstants.h"
+#include "exeiconutil.h"
 
 #include <QPainter>
 #include <QMouseEvent>
@@ -14,7 +15,6 @@
 #include <QIcon>
 #include <QApplication>
 #include <QFontMetrics>
-#include <QProcess>
 #include <QImageReader>
 #include <QStandardPaths>
 #include <QDir>
@@ -281,6 +281,14 @@ void DesktopIcon::resolveIcon()
         if (!m_icon.isNull()) return;
     }
 
+    // Windows .exe: extract embedded icon via ExeIconUtil.
+    QPixmap exePixmap = ExeIconUtil::loadEmbeddedIcon(m_fileInfo);
+    if (!exePixmap.isNull()) {
+        m_thumbnail    = exePixmap;
+        m_hasThumbnail = true;
+        return;
+    }
+
     static const QStringList kImageExts = {
         "jpg", "jpeg", "png", "gif", "bmp", "webp",
         "tiff", "tif", "xpm", "pbm", "pgm", "ppm"
@@ -309,6 +317,16 @@ void DesktopIcon::resolveIcon()
     if (m_fileInfo.isDir()) {
         iconNames << "folder";
     } else {
+        // Check by extension first for known executable types.
+        // QMimeDatabase uses content sniffing by default, so .exe files
+        // without recognizable magic bytes get resolved as text/plain
+        // or inode/x-empty. Dolphin uses extension-based lookup, so
+        // we do the same for visual parity.
+        if (ext == "exe" || ext == "bin" || ext == "run" || ext == "app") {
+            iconNames << "application-x-ms-dos-executable"
+                      << "application-x-executable";
+        }
+
         if (!mimeType.iconName().isEmpty())
             iconNames << mimeType.iconName();
         if (!mimeType.genericIconName().isEmpty())
