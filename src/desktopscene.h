@@ -5,6 +5,8 @@
 #include <QHash>
 #include <QPoint>
 #include <QFileSystemWatcher>
+#include <QProcess>
+#include <QPointer>
 #include <QScreen>
 #include <QRect>
 #include <QByteArray>
@@ -58,6 +60,8 @@ private slots:
     void onFileDroppedOnTrash(const QString &filePath);
     void onNewFolder();
     void onNewDocument();
+    void onExtractArchive(const QFileInfo &fileInfo);
+    void onExtractFinished(int exitCode, QProcess::ExitStatus exitStatus);
     void onOpenInTerminal();
     void onArrangeBy(SortOrder order);
     void onAutoArrangeToggled();
@@ -110,6 +114,19 @@ private:
     void syncVirtualIcons();
     void applyAutoArrange();
     void updateIconPreview();
+
+    // Extract dialog
+    void showExtractDialog(const QStringList &files, const QString &archiveName,
+                           bool alreadyExisted, bool wasEmpty);
+
+    // Extraction state (async)
+    QPointer<QProcess>    m_extractProc;
+    QString               m_extractArchivePath;
+    QString               m_extractDir;
+    QPair<int,int>        m_extractArchiveCell;
+    QSet<QString>         m_extractExistingFiles;
+    QString               m_extractBaseName;
+    bool                  m_extracting     = false;
 
     QList<DesktopIcon *> m_icons;
     QHash<QString, QPoint>          m_positions;          // filename -> snapped pixel pos

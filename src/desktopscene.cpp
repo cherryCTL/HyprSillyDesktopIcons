@@ -4,13 +4,18 @@
 #include "inlinemenu.h"
 #include "desktopconstants.h"
 
+#include <cmath>
+#include <QDialog>
 #include <QDir>
 #include <QFile>
 #include <QFileInfo>
 #include <QFileInfoList>
+#include <QFrame>
 #include <QMouseEvent>
 #include <QPainter>
+#include <QPushButton>
 #include <QSettings>
+#include <QSet>
 #include <QProcess>
 #include <QApplication>
 #include <QClipboard>
@@ -582,6 +587,31 @@ void DesktopScene::updateIconPreview()
 
 void DesktopScene::refresh()
 {
+    // Guard against re-entrant calls (e.g. QFileSystemWatcher firing during
+    // a rename operation that's already inside refresh()).
+    static bool inRefresh = false;
+    if (inRefresh)
+        return;
+    inRefresh = true;
+
+    // Don't refresh while extraction is running — the file watcher will
+    // fire as new files are created, which would conflict with the
+    // extraction process.
+    if (m_extracting) {
+        inRefresh = false;
+        return;
+    }
+
+    // Close and hide all context menus BEFORE touching the scene.
+    // This prevents crashes when a menu is open during a filesystem
+    // change (e.g. rename) that triggers this refresh.
+    closeAllMenus();
+    if (m_ctxMenu)        static_cast<InlineMenu*>(m_ctxMenu)->hide();
+    if (m_iconCtxMenu)    static_cast<InlineMenu*>(m_iconCtxMenu)->hide();
+    if (m_ctxArrangeMenu) static_cast<InlineMenu*>(m_ctxArrangeMenu)->hide();
+    if (m_newMenu)        static_cast<InlineMenu*>(m_newMenu)->hide();
+    if (m_systemMenu)     static_cast<InlineMenu*>(m_systemMenu)->hide();
+
     clearDragFeedbackCursor();
     m_lastTypeSelectChar = QChar();
     m_lastTypeSelectMatch = -1;
@@ -602,6 +632,7 @@ void DesktopScene::refresh()
         applyAutoArrange();
 
     updateIconPreview();
+    inRefresh = false;
 }
 
 // onIconMoved, desktopscene_dragdrop.cpp
@@ -715,9 +746,11 @@ void DesktopScene::onRenameRequested(DesktopIcon *icon)
 {
     bool ok = false;
     const QString oldName = icon->fileInfo().fileName();
+    const QString oldPath = icon->fileInfo().absoluteFilePath();
+    const QString dirPath = icon->fileInfo().absolutePath();
     QString renameSeed = oldName;
     if (icon->fileInfo().suffix().compare("desktop", Qt::CaseInsensitive) == 0) {
-        QFile file(icon->fileInfo().absoluteFilePath());
+        QFile file(oldPath);
         if (file.open(QIODevice::ReadOnly | QIODevice::Text)) {
             QTextStream in(&file);
             bool inDesktopEntry = false;
@@ -739,31 +772,43 @@ void DesktopScene::onRenameRequested(DesktopIcon *icon)
             }
         }
     }
+
+    // Block the file watcher during the rename dialog. On Wayland, modal
+    // dialogs don't block Qt signals, so the watcher fires as the file is
+    // renamed — triggering refresh() which deletes the old icon while the
+    // context menu may still reference it.
+    const bool wasWatching = m_watcher->blockSignals(true);
+
     const QString newName = QInputDialog::getText(
         this, "Rename", "New name:", QLineEdit::Normal, renameSeed, &ok
     );
+
+    // Restore watcher and manually trigger a refresh to pick up the rename.
+    m_watcher->blockSignals(wasWatching);
+    queueRefresh(50);
+
     if (!ok || newName.trimmed().isEmpty()) return;
 
     const QString trimmedName = newName.trimmed();
     QString targetFileName = trimmedName;
-    if (icon->fileInfo().suffix().compare("desktop", Qt::CaseInsensitive) == 0
+    if (oldPath.toLower().endsWith(".desktop")
         && !trimmedName.endsWith(".desktop", Qt::CaseInsensitive)) {
         targetFileName += ".desktop";
     }
     if (targetFileName == oldName) return;
 
-    const QString oldPath = icon->fileInfo().absoluteFilePath();
-    const QString newPath = icon->fileInfo().absolutePath() + "/" + targetFileName;
+    const QString newPath = dirPath + "/" + targetFileName;
 
     if (!QFile::rename(oldPath, newPath)) {
-        QMessageBox::warning(this, "Rename",
+        QMessageBox::warning(nullptr, "Rename",
             "Could not rename \"" + oldName + "\" to \"" + targetFileName + "\".");
     } else {
         if (m_positions.contains(oldName)) {
             m_positions[targetFileName] = m_positions.take(oldName);
             queueSavePositions(kSaveDebounceMs);
         }
-        // refresh() will be triggered by the file watcher
+        // Manually trigger refresh now that the rename is complete.
+        queueRefresh(50);
     }
 }
 
@@ -1179,8 +1224,17 @@ void DesktopScene::onIconReleased(DesktopIcon *icon, bool wasDrag, bool ctrlHeld
     }
 }
 
+// Forward declaration - full definition below.
+static QString extractCommandFor(const QString &path);
+
 void DesktopScene::onIconContextMenuRequested(DesktopIcon *icon, QPoint scenePos)
 {
+    // Safety: the icon might have been deleted by a filesystem refresh
+    // (rename) between when the signal was queued and this slot fired.
+    // Check BEFORE any pointer access.
+    if (!icon || !m_icons.contains(icon))
+        return;
+
     // Close any open desktop context menu first
     if (m_ctxMenu && m_ctxMenu->isVisible())
         static_cast<InlineMenu*>(m_ctxMenu)->closeAll();
@@ -1189,24 +1243,57 @@ void DesktopScene::onIconContextMenuRequested(DesktopIcon *icon, QPoint scenePos
     menu->clear();
 
     if (!icon->isVirtual()) {
-        menu->addAction("Open",   [this, icon] { emit icon->openRequested(icon->fileInfo()); });
+        const QFileInfo fi = icon->fileInfo();
+
+        menu->addAction("Open", [this, fi] {
+            if (QFileInfo::exists(fi.absoluteFilePath()))
+                onOpenRequested(fi);
+        });
         menu->addSep();
+
+        // Extract here option for archives
+        if (!extractCommandFor(fi.absoluteFilePath()).isEmpty()) {
+            menu->addAction("Extract here", [this, fi] {
+                if (QFileInfo::exists(fi.absoluteFilePath()))
+                    onExtractArchive(fi);
+                else
+                    QMessageBox::warning(nullptr, "Extract",
+                        "The archive file no longer exists.");
+            });
+            menu->addSep();
+        }
+
         menu->addAction("Copy",  [this] { copySelectedIcons(); });
         menu->addAction("Cut",   [this] { cutSelectedIcons(); });
         menu->addSep();
-        menu->addAction("Rename", [this, icon] { emit icon->renameRequested(icon); });
-        menu->addAction("Delete", [this, icon] {
-            // Ensure this icon is selected so onDeleteKeys includes it
-            if (!icon->isSelected()) {
-                for (auto *i : m_icons) i->setSelected(i == icon);
+        menu->addAction("Rename", [this, fi, menu] {
+            static_cast<InlineMenu*>(menu)->closeAll();
+            static_cast<InlineMenu*>(menu)->hide();
+
+            // Find the icon by path at click time — never capture icon pointer.
+            for (auto *i : m_icons) {
+                if (!i->isVirtual() && i->fileInfo().absoluteFilePath() == fi.absoluteFilePath()) {
+                    emit i->renameRequested(i);
+                    break;
+                }
+            }
+        });
+        menu->addAction("Delete", [this, fi] {
+            for (auto *i : m_icons) {
+                if (!i->isVirtual() && i->fileInfo().absoluteFilePath() == fi.absoluteFilePath()) {
+                    i->setSelected(true);
+                    break;
+                }
             }
             onDeleteKeys(false);
         });
         menu->addSep();
-        menu->addAction("Properties...", [this, icon] {
-            auto *dlg = new FilePropertiesDialog(icon->fileInfo(), nullptr);
-            dlg->setAttribute(Qt::WA_DeleteOnClose);
-            dlg->exec();
+        menu->addAction("Properties...", [this, fi] {
+            if (QFileInfo::exists(fi.absoluteFilePath())) {
+                auto *dlg = new FilePropertiesDialog(fi, nullptr);
+                dlg->setAttribute(Qt::WA_DeleteOnClose);
+                dlg->exec();
+            }
         });
     } else {
         menu->addAction("Open", [this, icon] {
@@ -1321,6 +1408,280 @@ void DesktopScene::onNewDocument()
     file.close();
     queueSavePositions(kSaveDebounceMs);
     // file watcher triggers refresh()
+}
+
+// ── Archive extraction ──────────────────────────────────────────────────────
+
+static QString extractCommandFor(const QString &path)
+{
+    const QString ext = path.toLower();
+    if (ext.endsWith(".zip")) {
+        if (!QStandardPaths::findExecutable("unzip").isEmpty())
+            return "unzip -o \"%1\"";
+    } else if (ext.endsWith(".tar.xz") || ext.endsWith(".tar.zst") || ext.endsWith(".tar.bz2") || ext.endsWith(".tar.gz") || ext.endsWith(".tgz") || ext.endsWith(".tar")) {
+        if (!QStandardPaths::findExecutable("tar").isEmpty())
+            return "tar xf \"%1\"";
+    } else if (ext.endsWith(".xz")) {
+        if (!QStandardPaths::findExecutable("xz").isEmpty())
+            return "xz -d \"%1\"";
+    } else if (ext.endsWith(".7z")) {
+        if (!QStandardPaths::findExecutable("7z").isEmpty())
+            return "7z x \"%1\" -y";
+    } else if (ext.endsWith(".rar")) {
+        if (!QStandardPaths::findExecutable("unrar").isEmpty())
+            return "unrar x \"%1\"";
+    } else if (ext.endsWith(".gz")) {
+        if (!QStandardPaths::findExecutable("gzip").isEmpty())
+            return "gzip -d \"%1\"";
+    } else if (ext.endsWith(".bz2")) {
+        if (!QStandardPaths::findExecutable("bzip2").isEmpty())
+            return "bzip2 -d \"%1\"";
+    }
+    return {};
+}
+
+void DesktopScene::onExtractArchive(const QFileInfo &fileInfo)
+{
+    const QString archivePath = fileInfo.absoluteFilePath();
+    const QString dir = fileInfo.absolutePath();
+
+    // File might have been deleted or renamed since the menu was opened.
+    if (!QFileInfo::exists(archivePath)) {
+        QMessageBox::warning(nullptr, "Extract",
+            "The archive file no longer exists.");
+        return;
+    }
+
+    QString cmd = extractCommandFor(archivePath);
+    if (cmd.isEmpty()) {
+        QMessageBox::warning(nullptr, "Extract",
+            "No suitable tool found to extract this archive.\n"
+            "Install unzip, tar, 7z, or unrar as needed.");
+        return;
+    }
+
+    // Cleanup from any previous extraction process.
+    if (m_extractProc) {
+        disconnect(m_extractProc, nullptr, this, nullptr);
+        if (m_extractProc->state() != QProcess::NotRunning) {
+            m_extractProc->kill();
+            m_extractProc->waitForFinished();
+        }
+        m_extractProc->deleteLater();
+        m_extractProc = nullptr;
+    }
+
+    // Mark as extracting — prevents refresh() from running while
+    // the file watcher fires during extraction.
+    m_extracting = true;
+
+    // Scan top-level files/folders before extraction.
+    m_extractExistingFiles.clear();
+    QDir beforeDir(dir);
+    for (const auto &fi : beforeDir.entryInfoList(QDir::Files | QDir::Dirs | QDir::NoDotAndDotDot))
+        m_extractExistingFiles.insert(fi.fileName());
+
+    // Find the archive icon's grid cell.
+    m_extractArchiveCell = {-1, -1};
+    for (auto *icon : m_icons) {
+        if (!icon->isVirtual() && icon->fileInfo().absoluteFilePath() == archivePath) {
+            for (auto it = m_occupiedCells.constBegin(); it != m_occupiedCells.constEnd(); ++it) {
+                if (it.value() == icon->fileInfo().fileName()) {
+                    m_extractArchiveCell = it.key();
+                    break;
+                }
+            }
+            break;
+        }
+    }
+
+    m_extractArchivePath = archivePath;
+    m_extractDir = dir;
+    m_extractBaseName = fileInfo.baseName();
+
+    cmd = cmd.arg(archivePath);
+
+    m_extractProc = new QProcess(this);
+    m_extractProc->setWorkingDirectory(dir);
+    connect(m_extractProc, QOverload<int, QProcess::ExitStatus>::of(&QProcess::finished),
+            this, &DesktopScene::onExtractFinished);
+    m_extractProc->start("sh", {"-c", cmd});
+}
+
+void DesktopScene::onExtractFinished(int exitCode, QProcess::ExitStatus exitStatus)
+{
+    QProcess *proc = qobject_cast<QProcess*>(sender());
+    if (!proc)
+        proc = m_extractProc.data();
+    if (!proc)
+        return;
+
+    // Ignore stale signals from previous process instances.
+    if (proc != m_extractProc) {
+        proc->deleteLater();
+        return;
+    }
+
+    if (exitStatus == QProcess::CrashExit) {
+        QMessageBox::warning(nullptr, "Extract", "Extraction process crashed.");
+        m_extracting = false;
+        proc->deleteLater();
+        m_extractProc = nullptr;
+        return;
+    }
+
+    if (exitCode != 0) {
+        const QString errText = QString::fromLocal8Bit(proc->readAllStandardError());
+        QMessageBox::warning(nullptr, "Extract",
+            QString("Extraction failed:\n%1")
+                .arg(errText));
+        m_extracting = false;
+        proc->deleteLater();
+        m_extractProc = nullptr;
+        return;
+    }
+
+    // Scan top-level files/folders after extraction to find what's new.
+    QDir afterDir(m_extractDir);
+    QStringList newFiles;
+    for (const auto &fi : afterDir.entryInfoList(QDir::Files | QDir::Dirs | QDir::NoDotAndDotDot)) {
+        if (!m_extractExistingFiles.contains(fi.fileName()))
+            newFiles.append(fi.fileName());
+    }
+
+    if (newFiles.isEmpty()) {
+        bool likelyEmpty = QFileInfo(m_extractArchivePath).size() < 100;
+        showExtractDialog(newFiles, m_extractBaseName, !likelyEmpty, likelyEmpty);
+    } else {
+        // If exactly one new folder was extracted, rename it to match
+        // the archive name (without extension) so it's not confusing.
+        if (newFiles.size() == 1) {
+            const QString oldName = newFiles.first();
+            const QString newName = m_extractBaseName;
+            if (oldName != newName && !QFileInfo(m_extractDir + "/" + newName).exists()) {
+                const QString oldPath = m_extractDir + "/" + oldName;
+                const QString newPath = m_extractDir + "/" + newName;
+                if (QFileInfo(oldPath).isDir()) {
+                    QDir().rename(oldPath, newPath);
+                    newFiles[0] = newName;
+                }
+            }
+        }
+
+        int placed = 0;
+        if (m_extractArchiveCell.first >= 0) {
+            for (int ring = 1; ring < 10 && placed < newFiles.size(); ++ring) {
+                for (int dc = -ring; dc <= ring && placed < newFiles.size(); ++dc) {
+                    for (int dr = -ring; dr <= ring && placed < newFiles.size(); ++dr) {
+                        if (qAbs(dc) != ring && qAbs(dr) != ring)
+                            continue;
+                        int c = m_extractArchiveCell.first + dc;
+                        int r = m_extractArchiveCell.second + dr;
+                        if (c < 0 || c >= maxCols() || r < 0 || r >= maxRows())
+                            continue;
+                        auto cell = qMakePair(c, r);
+                        if (m_occupiedCells.contains(cell))
+                            continue;
+                        m_occupiedCells[cell] = newFiles[placed];
+                        m_positions[newFiles[placed]] = cellToPos(c, r);
+                        ++placed;
+                    }
+                }
+            }
+        }
+        for (int i = placed; i < newFiles.size(); ++i) {
+            auto cell = nextFreeCell();
+            m_occupiedCells[cell] = newFiles[i];
+            m_positions[newFiles[i]] = cellToPos(cell.first, cell.second);
+        }
+        queueSavePositions(kSaveDebounceMs);
+        showExtractDialog(newFiles, m_extractBaseName, false, false);
+        queueRefresh(500);
+    }
+
+    m_extracting = false;
+    proc->deleteLater();
+    m_extractProc = nullptr;
+}
+
+// ── Extract result dialog ───────────────────────────────────────────────────
+
+void DesktopScene::showExtractDialog(const QStringList &files, const QString &archiveName,
+                                      bool alreadyExisted, bool wasEmpty)
+{
+    auto *dlg = new QDialog(nullptr, Qt::Dialog | Qt::WindowCloseButtonHint);
+    dlg->setWindowTitle("Extract");
+    dlg->setObjectName("PropertiesDialog");
+    dlg->setFixedWidth(360);
+    dlg->setSizeGripEnabled(false);
+
+    auto *root = new QVBoxLayout(dlg);
+    root->setContentsMargins(0, 0, 0, 0);
+    root->setSpacing(0);
+
+    auto *banner = new QFrame(dlg);
+    banner->setObjectName("PropBanner");
+    banner->setFixedHeight(kPropertiesDialogBannerHeight);
+    auto *bl = new QHBoxLayout(banner);
+    bl->setContentsMargins(10, 6, 10, 6);
+    bl->setSpacing(10);
+
+    auto *bIcon = new QLabel(banner);
+    bIcon->setPixmap(QIcon::fromTheme("emblem-default",
+        QIcon::fromTheme("dialog-ok")).pixmap(32, 32));
+
+    QString bText;
+    if (alreadyExisted)
+        bText = "All files already on desktop";
+    else if (wasEmpty)
+        bText = "Archive is empty";
+    else
+        bText = "Extract complete";
+    auto *bLabel = new QLabel(bText, banner);
+    bLabel->setObjectName("PropBannerText");
+
+    bl->addWidget(bIcon);
+    bl->addWidget(bLabel, 1);
+    bl->addStretch();
+    root->addWidget(banner);
+
+    auto *content = new QWidget(dlg);
+    content->setObjectName("PropContent");
+    auto *cl = new QVBoxLayout(content);
+    cl->setContentsMargins(kPropertiesDialogContentMargins,
+                            kPropertiesDialogContentMargins,
+                            kPropertiesDialogContentMargins,
+                            kPropertiesDialogContentMargins);
+    cl->setSpacing(8);
+
+    auto *info = new QLabel(content);
+    info->setTextInteractionFlags(Qt::TextSelectableByMouse);
+    info->setWordWrap(true);
+
+    if (alreadyExisted) {
+        info->setText(QStringLiteral("All files from \"%1\" are already on the Desktop.\nNothing new was extracted.").arg(archiveName));
+    } else if (wasEmpty) {
+        info->setText(QStringLiteral("The archive \"%1\" appears to be empty.").arg(archiveName));
+    } else if (files.size() <= 10) {
+        info->setText(QStringLiteral("Extracted %1 file%2 from \"%3\":\n\n%4")
+            .arg(files.size()).arg(files.size() == 1 ? "" : "s")
+            .arg(archiveName).arg(files.join("\n")));
+    } else {
+        info->setText(QStringLiteral("Extracted %1 files from \"%2\":\n\n%3\n\nand %4 more")
+            .arg(files.size()).arg(archiveName)
+            .arg(files.mid(0, 10).join("\n"))
+            .arg(files.size() - 10));
+    }
+    cl->addWidget(info);
+    cl->addStretch();
+    root->addWidget(content);
+
+    auto *btns = new QDialogButtonBox(QDialogButtonBox::Ok, dlg);
+    QObject::connect(btns, &QDialogButtonBox::accepted, dlg, &QDialog::accept);
+    root->addWidget(btns);
+
+    dlg->exec();
+    dlg->deleteLater();
 }
 
 void DesktopScene::onOpenInTerminal()
