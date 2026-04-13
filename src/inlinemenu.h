@@ -5,6 +5,10 @@
 #include <QRect>
 #include <QVector>
 #include <functional>
+#include <QPointer>
+#include <QGraphicsEffect>
+
+class QPropertyAnimation;
 
 // Lightweight replacement for QMenu - implemented as a child widget
 // to avoid Wayland popup grab issues with layer-shell surfaces.
@@ -25,7 +29,7 @@ public:
     static constexpr int kSepH  = 8;
     static constexpr int kPadL  = 18;
     static constexpr int kPadR  = 12;
-    static constexpr int kMinW  = 80;
+    static constexpr int kMinW  = 130;
 
     explicit InlineMenu(QWidget *parent);
 
@@ -39,9 +43,11 @@ public:
 
     void popup(const QPoint &pos, const QRect &available = QRect());
     void closeAll();
+    void closeAllImmediate();
 
     // Internal: close entire tree from this menu (no root delegation)
     void _closeTree();
+    void _hideTreeImmediate();
 
     // Internal: hide only this menu (no recursion, no delegation)
     void _hideSelf();
@@ -59,9 +65,17 @@ protected:
     void mousePressEvent(QMouseEvent *ev) override;
 
 private:
+    void startFadeIn();
+    void startFadeOut(std::function<void()> onFinished = nullptr);
+
     QVector<Item> m_items;
     int           m_hover     = -1;
     InlineMenu   *m_activeSubmenu = nullptr;
     InlineMenu   *m_root     = nullptr;
     QRect         m_available;
+    QPointer<QPropertyAnimation> m_opacityAnim;
+    int m_fadeSeq = 0;
+    bool m_closing = false;
+
+    QPointer<QGraphicsOpacityEffect> m_opacityEffect;
 };

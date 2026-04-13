@@ -15,6 +15,7 @@
 #include <QLabel>
 #include <QTimer>
 #include <QKeyEvent>
+#include <QDateTime>
 #include <QDragEnterEvent>
 #include <QDragMoveEvent>
 #include <QDropEvent>
@@ -96,6 +97,7 @@ private:
     void setupHyprlandIPC(); // socket2 connection + event parsing (extracted to desktopscene_ipc.cpp)
     QRect workArea() const;    // screen work area in scene-local coordinates
     QRect menuBoundary() const; // popup boundary respecting panel reserved areas
+    void showDesktopContextMenuAt(const QPoint &scenePos);
 
     // Grid helpers
     QPoint cellToPos(int col, int row) const;

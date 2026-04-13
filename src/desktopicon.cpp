@@ -471,6 +471,9 @@ void DesktopIcon::mousePressEvent(QMouseEvent *event)
         m_lastDragPos      = pos();
         emit pressed(this, m_ctrlAtPress);
         event->accept();
+    } else if (event->button() == Qt::RightButton) {
+        m_rightPressed = true;
+        event->accept();
     } else {
         QWidget::mousePressEvent(event);
     }
@@ -508,6 +511,13 @@ void DesktopIcon::mouseReleaseEvent(QMouseEvent *event)
             emit moved(this, m_lastDragPos); // virtual position, not actual widget pos
         emit released(this, m_dragging, m_ctrlAtPress);
         m_dragging = false;
+        event->accept();
+    } else if (event->button() == Qt::RightButton) {
+        if (m_rightPressed) {
+            setSelected(true);
+            emit iconContextMenuRequested(this, mapToParent(event->position().toPoint()));
+        }
+        m_rightPressed = false;
         event->accept();
     } else {
         QWidget::mouseReleaseEvent(event);
@@ -549,8 +559,12 @@ void DesktopIcon::mouseDoubleClickEvent(QMouseEvent *event)
 
 void DesktopIcon::contextMenuEvent(QContextMenuEvent *event)
 {
+    if (event->reason() == QContextMenuEvent::Mouse) {
+        event->accept();
+        return;
+    }
     setSelected(true);
-    emit iconContextMenuRequested(this, mapToParent(event->pos()));
+    emit iconContextMenuRequested(this, mapToParent(rect().center()));
     event->accept();
 }
 

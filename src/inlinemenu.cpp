@@ -4,6 +4,8 @@
 #include <QCursor>
 #include <QFontMetrics>
 #include <QMouseEvent>
+#include <QGraphicsOpacityEffect>
+#include <QPropertyAnimation>
 
 // ---------------------------------------------------------------------------
 // InlineMenu - child-widget context menu (no QMenu, avoids Wayland grab issues)
@@ -14,6 +16,13 @@ InlineMenu::InlineMenu(QWidget *parent) : QWidget(parent)
     setMouseTracking(true);
     setAttribute(Qt::WA_NoSystemBackground);
     setAttribute(Qt::WA_OpaquePaintEvent);
+
+    // Opacity effect for fade in/out
+    auto *effect = new QGraphicsOpacityEffect(this);
+    effect->setOpacity(1.0);
+    setGraphicsEffect(effect);
+    m_opacityEffect = effect;
+
     hide();
 }
 
@@ -61,8 +70,14 @@ void InlineMenu::popup(const QPoint &pos, const QRect &available) {
     resize(w, h);
     move(p);
     raise();
+    m_closing = false;
+
+    // Reset opacity and show
+    if (m_opacityEffect) {
+        m_opacityEffect->setOpacity(0.0);
+    }
     show();
-    update();
+    startFadeIn();
 }
 
 void InlineMenu::closeAll() {
@@ -71,15 +86,36 @@ void InlineMenu::closeAll() {
     root->_closeTree();
 }
 
+void InlineMenu::closeAllImmediate() {
+    InlineMenu *root = m_root ? m_root : this;
+    root->_hideTreeImmediate();
+}
+
 void InlineMenu::_closeTree() {
     for (auto &it : m_items)
         if (it.submenu) it.submenu->_hideSelf();
+    startFadeOut([this]() { /* lambda keeps capture simple */ });
+}
+
+void InlineMenu::_hideTreeImmediate() {
+    for (auto &it : m_items)
+        if (it.submenu) it.submenu->_hideTreeImmediate();
     _hideSelf();
 }
 
 void InlineMenu::_hideSelf() {
+    ++m_fadeSeq;
+    if (m_opacityAnim) {
+        m_opacityAnim->stop();
+        m_opacityAnim->deleteLater();
+        m_opacityAnim = nullptr;
+    }
+    m_closing = false;
     m_activeSubmenu = nullptr;
     m_hover = -1;
+    if (m_opacityEffect) {
+        m_opacityEffect->setOpacity(1.0);
+    }
     hide();
 }
 
@@ -109,6 +145,64 @@ QRect InlineMenu::itemRect(int idx) const {
         y += h;
     }
     return {};
+}
+
+// ── Fade animations ─────────────────────────────────────────────────────────
+
+static constexpr int kFadeMs = 170;
+
+void InlineMenu::startFadeIn() {
+    if (!m_opacityEffect) return;
+    ++m_fadeSeq;
+    if (m_opacityAnim) {
+        m_opacityAnim->stop();
+        m_opacityAnim->deleteLater();
+        m_opacityAnim = nullptr;
+    }
+    auto *anim = new QPropertyAnimation(m_opacityEffect, "opacity", this);
+    m_opacityAnim = anim;
+    m_closing = false;
+    anim->setDuration(kFadeMs);
+    anim->setStartValue(m_opacityEffect->opacity());
+    anim->setEndValue(1.0);
+    anim->setEasingCurve(QEasingCurve::OutCubic);
+    QObject::connect(anim, &QPropertyAnimation::finished, this, [this, anim]() {
+        if (m_opacityAnim == anim)
+            m_opacityAnim = nullptr;
+    });
+    anim->start(QPropertyAnimation::DeleteWhenStopped);
+}
+
+void InlineMenu::startFadeOut(std::function<void()> onFinished) {
+    if (m_closing) return;
+    if (!m_opacityEffect) {
+        hide();
+        if (onFinished) onFinished();
+        return;
+    }
+    const int fadeSeq = ++m_fadeSeq;
+    if (m_opacityAnim) {
+        m_opacityAnim->stop();
+        m_opacityAnim->deleteLater();
+        m_opacityAnim = nullptr;
+    }
+    auto *anim = new QPropertyAnimation(m_opacityEffect, "opacity", this);
+    m_opacityAnim = anim;
+    m_closing = true;
+    anim->setDuration(kFadeMs);
+    anim->setStartValue(m_opacityEffect->opacity());
+    anim->setEndValue(0.0);
+    anim->setEasingCurve(QEasingCurve::InCubic);
+    QObject::connect(anim, &QPropertyAnimation::finished, this, [this, onFinished, fadeSeq, anim]() {
+        if (m_opacityAnim == anim)
+            m_opacityAnim = nullptr;
+        if (fadeSeq != m_fadeSeq)
+            return;
+        m_closing = false;
+        hide();
+        if (onFinished) onFinished();
+    });
+    anim->start(QPropertyAnimation::DeleteWhenStopped);
 }
 
 void InlineMenu::paintEvent(QPaintEvent *) {

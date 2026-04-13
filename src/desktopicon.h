@@ -90,6 +90,7 @@ private:
     bool    m_cut             = false;  // dimmed: icon is in clipboard cut state
     bool    m_hasThumbnail    = false;
     bool    m_ctrlAtPress     = false;
+    bool    m_rightPressed    = false;
     bool    m_showPreview     = true;
     int     m_iconDisplaySize = 40;
     QString m_fontFamily      = "MS Sans Serif";

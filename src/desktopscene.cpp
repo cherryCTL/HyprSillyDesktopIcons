@@ -594,9 +594,7 @@ void DesktopScene::refresh()
         return;
     inRefresh = true;
 
-    // Don't refresh while extraction is running — the file watcher will
-    // fire as new files are created, which would conflict with the
-    // extraction process.
+    // Skip refresh while extraction is running.
     if (m_extracting) {
         inRefresh = false;
         return;
@@ -773,10 +771,7 @@ void DesktopScene::onRenameRequested(DesktopIcon *icon)
         }
     }
 
-    // Block the file watcher during the rename dialog. On Wayland, modal
-    // dialogs don't block Qt signals, so the watcher fires as the file is
-    // renamed — triggering refresh() which deletes the old icon while the
-    // context menu may still reference it.
+    // Block the file watcher while the rename dialog is open.
     const bool wasWatching = m_watcher->blockSignals(true);
 
     const QString newName = QInputDialog::getText(
@@ -988,14 +983,26 @@ void DesktopScene::onFileDroppedOnTrash(const QString &filePath)
 
 void DesktopScene::mousePressEvent(QMouseEvent *event)
 {
-    // Dismiss in-surface context menu on any click outside it
-    if (m_ctxMenu && m_ctxMenu->isVisible())
-        static_cast<InlineMenu*>(m_ctxMenu)->closeAll();
-    if (m_iconCtxMenu && m_iconCtxMenu->isVisible())
-        static_cast<InlineMenu*>(m_iconCtxMenu)->closeAll();
+    // Dismiss in-surface context menus only on left click outside them.
+    if (event->button() == Qt::LeftButton) {
+        if (m_ctxMenu && m_ctxMenu->isVisible()) {
+            auto *menu = static_cast<InlineMenu*>(m_ctxMenu);
+            if (!menu->hitMenu(event->pos()))
+                menu->closeAll();
+        }
+        if (m_iconCtxMenu && m_iconCtxMenu->isVisible()) {
+            auto *menu = static_cast<InlineMenu*>(m_iconCtxMenu);
+            if (!menu->hitMenu(event->pos()))
+                menu->closeAll();
+        }
+    }
 
-    // Only start rubber-band when clicking on empty background,
-    // not on a child icon (icon's mousePressEvent accepts and stops propagation).
+    // Right-click context menu is opened on release.
+    if (event->button() == Qt::RightButton) {
+        event->accept();
+        return;
+    }
+
     if (event->button() != Qt::LeftButton) {
         QWidget::mousePressEvent(event);
         return;
@@ -1042,6 +1049,12 @@ void DesktopScene::mouseMoveEvent(QMouseEvent *event)
 
 void DesktopScene::mouseReleaseEvent(QMouseEvent *event)
 {
+    if (event->button() == Qt::RightButton) {
+        showDesktopContextMenuAt(event->pos());
+        event->accept();
+        return;
+    }
+
     if (event->button() == Qt::LeftButton && m_rubberBanding) {
         m_rubberBanding = false;
         const QRect dirty = m_rubberRect.adjusted(-1, -1, 1, 1);
@@ -1094,6 +1107,26 @@ void DesktopScene::paintEvent(QPaintEvent *)
 
 void DesktopScene::contextMenuEvent(QContextMenuEvent *event)
 {
+    if (event->reason() == QContextMenuEvent::Mouse) {
+        event->accept();
+        return;
+    }
+
+    QPoint pos = event->pos();
+    if (!rect().contains(pos))
+        pos = rect().center();
+    showDesktopContextMenuAt(pos);
+    event->accept();
+}
+
+void DesktopScene::showDesktopContextMenuAt(const QPoint &scenePos)
+{
+    if (m_ctxMenu)        static_cast<InlineMenu*>(m_ctxMenu)->closeAllImmediate();
+    if (m_iconCtxMenu)    static_cast<InlineMenu*>(m_iconCtxMenu)->closeAllImmediate();
+    if (m_ctxArrangeMenu) static_cast<InlineMenu*>(m_ctxArrangeMenu)->closeAllImmediate();
+    if (m_newMenu)        static_cast<InlineMenu*>(m_newMenu)->closeAllImmediate();
+    if (m_systemMenu)     static_cast<InlineMenu*>(m_systemMenu)->closeAllImmediate();
+
     auto *menu    = static_cast<InlineMenu*>(m_ctxMenu);
     auto *arrange = static_cast<InlineMenu*>(m_ctxArrangeMenu);
     auto *newMenu = static_cast<InlineMenu*>(m_newMenu);
@@ -1187,9 +1220,8 @@ void DesktopScene::contextMenuEvent(QContextMenuEvent *event)
     menu->addSep();
     menu->addAction("Properties...", [this] { onShowProperties(); });
 
-    m_lastContextMenuPos = event->pos();
-    menu->popup(event->pos(), menuBoundary());
-    event->accept();
+    m_lastContextMenuPos = scenePos;
+    menu->popup(scenePos, menuBoundary());
 }
 
 // ── Icon interaction slots ────────────────────────────────────────────────────
@@ -1229,15 +1261,12 @@ static QString extractCommandFor(const QString &path);
 
 void DesktopScene::onIconContextMenuRequested(DesktopIcon *icon, QPoint scenePos)
 {
-    // Safety: the icon might have been deleted by a filesystem refresh
-    // (rename) between when the signal was queued and this slot fired.
-    // Check BEFORE any pointer access.
     if (!icon || !m_icons.contains(icon))
         return;
 
     // Close any open desktop context menu first
     if (m_ctxMenu && m_ctxMenu->isVisible())
-        static_cast<InlineMenu*>(m_ctxMenu)->closeAll();
+        static_cast<InlineMenu*>(m_ctxMenu)->closeAllImmediate();
 
     auto *menu = static_cast<InlineMenu*>(m_iconCtxMenu);
     menu->clear();
@@ -1270,7 +1299,7 @@ void DesktopScene::onIconContextMenuRequested(DesktopIcon *icon, QPoint scenePos
             static_cast<InlineMenu*>(menu)->closeAll();
             static_cast<InlineMenu*>(menu)->hide();
 
-            // Find the icon by path at click time — never capture icon pointer.
+            // Find the icon by path at click time.
             for (auto *i : m_icons) {
                 if (!i->isVirtual() && i->fileInfo().absoluteFilePath() == fi.absoluteFilePath()) {
                     emit i->renameRequested(i);
@@ -1471,8 +1500,7 @@ void DesktopScene::onExtractArchive(const QFileInfo &fileInfo)
         m_extractProc = nullptr;
     }
 
-    // Mark as extracting — prevents refresh() from running while
-    // the file watcher fires during extraction.
+    // Prevent refresh while extraction is running.
     m_extracting = true;
 
     // Scan top-level files/folders before extraction.
