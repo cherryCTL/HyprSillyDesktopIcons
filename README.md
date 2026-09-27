@@ -1,24 +1,30 @@
 # HyprSillyDesktopIcons
 
-> A modified and updated version of [Oh My Desktop](https://github.com/EduuG/oh-my-desktop), renamed as [**HyprSillyDesktopIcons**](https://github.com/cherryCTL/HyprSillyDesktopIcons).
+> A modified and updated fork of [Oh My Desktop](https://github.com/EduuG/oh-my-desktop), renamed and adapted as [**HyprSillyDesktopIcons**](https://github.com/cherryCTL/HyprSillyDesktopIcons).
+
+> This version was updated for my personal Hyprland setup, mainly to fix compatibility issues with newer Hyprland versions and update parts of the original project that no longer worked correctly.
 >
-> This version was updated for my personal use, mainly to fix parts of the project that needed updates to work with my current Hyprland setup. I did not originally know C++, so I used AI assistance to help understand and update the code.
->
-> I made these changes because I wanted a working desktop icon manager for my own setup. Feel free to read through the code and review the changes before using it, especially if you run into compatibility issues on your own system.
-
-Desktop icons manager for Hyprland. Hyprland has no built-in desktop support (as every twm), so this fills that gap.
-
-Built with C++17 and Qt6 + LayerShellQt, it gives you a proper desktop with drag-and-drop, keyboard navigation, multi-monitor, and file watching.
-
-<p>
-  <a href="https://github.com/cherryCTL/HyprSillyDesktopIcons"><img src="https://img.shields.io/badge/C%2B%2B-17-00599C?logo=cplusplus&logoColor=white" alt="C++17"></a>
-  <a href="https://github.com/cherryCTL/HyprSillyDesktopIcons"><img src="https://img.shields.io/badge/Qt-6-41CD52?logo=qt&logoColor=white" alt="Qt6"></a>
-  <a href="https://github.com/cherryCTL/HyprSillyDesktopIcons"><img src="https://img.shields.io/badge/Wayland-LayerShell-8054B8?logo=linux&logoColor=white" alt="Wayland LayerShell"></a>
-  <a href="https://github.com/cherryCTL/HyprSillyDesktopIcons"><img src="https://img.shields.io/badge/CMake-3.20+-064F8C?logo=cmake&logoColor=white" alt="CMake"></a>
-  <a href="https://github.com/cherryCTL/HyprSillyDesktopIcons"><img src="https://img.shields.io/badge/Linux-x86__64-E95420?logo=linux&logoColor=white" alt="Linux"></a>
-</p>
+> I didn't originally know C++, so I used AI assistance to help me understand, debug, and update the code. Feel free to read through the code and review the changes before using it on your own system.
 
 <a href="screenshot.png"><img src="screenshot.png" alt="Screenshot" width="800"></a>
+
+> **So, you might be wondering: what's so silly about this?**
+>
+> Honestly, nothing.
+>
+> **That's what makes it silly. :D**
+
+Desktop icons manager for Hyprland. Hyprland has no built-in desktop icon support, so this fills that gap.
+
+Built with C++17 and Qt6 + LayerShellQt, it provides a proper desktop with drag-and-drop, keyboard navigation, multi-monitor support, and file watching.
+
+<p>
+<a href="https://github.com/cherryCTL/HyprSillyDesktopIcons"><img src="https://img.shields.io/badge/C%2B%2B-17-00599C?logo=cplusplus&logoColor=white" alt="C++17"></a>
+<a href="https://github.com/cherryCTL/HyprSillyDesktopIcons"><img src="https://img.shields.io/badge/Qt-6-41CD52?logo=qt&logoColor=white" alt="Qt6"></a>
+<a href="https://github.com/cherryCTL/HyprSillyDesktopIcons"><img src="https://img.shields.io/badge/Wayland-LayerShell-8054B8?logo=linux&logoColor=white" alt="Wayland LayerShell"></a>
+<a href="https://github.com/cherryCTL/HyprSillyDesktopIcons"><img src="https://img.shields.io/badge/CMake-3.20+-064F8C?logo=cmake&logoColor=white" alt="CMake"></a>
+<a href="https://github.com/cherryCTL/HyprSillyDesktopIcons"><img src="https://img.shields.io/badge/Linux-x86__64-E95420?logo=linux&logoColor=white" alt="Linux"></a>
+</p>
 
 ## Tech Stack
 
@@ -31,35 +37,30 @@ Built with C++17 and Qt6 + LayerShellQt, it gives you a proper desktop with drag
 ## Build
 
 ```bash
-cd HyprSillyDesktopIcons && rm -rf build && mkdir build && cd build
-cmake .. -DCMAKE_BUILD_TYPE=Release && cmake --build . -j$(nproc)
+cd HyprSillyDesktopIcons
+rm -rf build
+mkdir build
+cd build
+
+cmake .. -DCMAKE_BUILD_TYPE=Release
+cmake --build . -j$(nproc)
 ```
 
 Requires Qt6 and LayerShellQt development packages.
 
-## Runtime deps
+## Runtime Dependencies
 
-`hyprctl`, `gio`, `xdg-mime`, `xdg-open`, plus any system terminal (duh)
+* `hyprctl`
+* `gio`
+* `xdg-mime`
+* `xdg-open`
+* A system terminal
 
 ## Run
 
-### Hyprland (hyprlang)
+### Hyprland Lua
 
-For older Hyprland configurations using `hyprland.conf`:
-
-```ini
-exec-once = /full/path/to/HyprSillyDesktopIcons/build/HyprSillyDesktopIcons
-```
-
-Or if you copied the binary to `~/.local/bin/`:
-
-```ini
-exec-once = HyprSillyDesktopIcons
-```
-
-### Hyprland (Lua)
-
-For Hyprland 0.55+ using `hyprland.lua`, start the application on the `hyprland.start` event:
+For Hyprland configurations using `hyprland.lua`:
 
 ```lua
 hl.on("hyprland.start", function()
@@ -83,70 +84,100 @@ end)
 
 * Grid layout with manual positioning and Ctrl+multi-select
 * Drag icons to move them — they snap to the nearest free cell
-* Ctrl+scroll to resize icons (24-96px range)
+* Ctrl+scroll to resize icons (24–96px range)
 * Image previews for common formats
 * `.desktop` files use `Name=` and `Icon=` from the entry
-* Pin applications to the desktop via the Properties dialog (Applications tab)
+* Pin applications to the desktop via the Properties dialog
 * Positions and settings saved to `~/.config/HyprSillyDesktopIcons/icon-positions.ini`
 
 ### File Management
 
 * Drag files onto the Recycle Bin or onto folders
-* (Almost) Smart text file opening
-* File watcher auto-refreshes when the Desktop folder changes
-* Recycle Bin accepts file drops and has "Empty Recycle Bin"
+* Smart text file opening
+* File watcher automatically refreshes when the Desktop folder changes
+* Recycle Bin accepts file drops and has an "Empty Recycle Bin" action
 
 ### Keyboard
 
-* Arrows to navigate, Enter to open, Delete to trash
+* Arrow keys to navigate
+* Enter to open
+* Delete to trash
 * Type-to-select files by name
-* Full keyboard navigation without mouse
+* Full keyboard navigation without a mouse
 
 ### Context Menus
 
-* Right-click desktop: New (Folder/Document), Open in Terminal, Arrange, System actions (lock, suspend, etc.), Properties
-* Right-click icons: Open, Rename, Delete, Properties
-* Virtual icons: Recycle Bin, My Computer, My Documents (individually togglable)
+* Right-click the desktop for:
+
+  * New Folder / Document
+  * Open in Terminal
+  * Arrange
+  * System actions
+  * Properties
+* Right-click icons for:
+
+  * Open
+  * Rename
+  * Delete
+  * Properties
+* Optional virtual icons:
+
+  * Recycle Bin
+  * My Computer
+  * My Documents
 
 ### Wayland Integration
 
-* Workspace switches clear menus and selection via Hyprland socket2
+* Workspace switches clear menus and selection through Hyprland socket2
 * Each monitor gets its own LayerShellQt window at `LayerBackground`
+* Automatically accounts for panel areas when positioning the desktop
 
-## How it works
+## How It Works
 
-### LayerShellQt windows
+### LayerShellQt Windows
 
-One desktop window per monitor, rendered as a background layer surface. This means it sits behind all other windows but stays visible — exactly what a desktop should be. When you plug in a new monitor, `screenAdded` fires and a new window is created automatically.
+One desktop window is created for each monitor and rendered as a background layer surface. This keeps the desktop visible while placing it behind normal application windows.
 
-### The QMenu problem on Wayland
+When a new monitor is connected, a new desktop window is created automatically.
 
-Standard `QMenu` popups don't work reliably on Wayland layer-shell surfaces. The compositor popup grab breaks and menus just don't appear. The workaround here is `InlineMenu`: context menus are implemented as child widgets (real `QWidget`s positioned under the cursor) instead of native popups. It's more code but it actually works pretty well.
+### Inline Menus
+
+Standard `QMenu` popups can be unreliable when used from Wayland layer-shell surfaces.
+
+HyprSillyDesktopIcons uses custom inline menus instead. These are regular child widgets positioned around the cursor, avoiding the popup grab issues that can occur with native menus on Wayland.
 
 ### Hyprland IPC
 
-No Hyprland-specific dependencies or compile-time coupling. Everything is runtime: `hyprctl monitors -j` to get panel areas (so the desktop doesn't draw under the Waybar or others), and a raw socket2 connection for workspace/focus events. If Hyprland isn't running or the socket is unavailable, the desktop still functions — you just lose workspace-aware behaviors.
+The application communicates with Hyprland at runtime rather than depending on Hyprland headers or compile-time integration.
 
-### Grid layout
+It uses:
 
-Qt doesn't have a built-in "desktop icon grid" that supports manual repositioning, rubber-band selection, and drag-to-rearrange all at once. The grid logic is custom — icons snap to cells, cells can be marked occupied, and the layout recalculates when icons are moved or resized.
+* `hyprctl` for monitor information
+* Hyprland's socket2 IPC for workspace and focus events
 
-## Related Projects
+If Hyprland IPC is unavailable, the desktop icon functionality can still operate, although workspace-aware behavior will be unavailable.
 
-* [HyprFrame](https://github.com/EduuG/classic-hypr-suite/tree/main/HyprFrame) — Hyprland plugin for customizable window title bars and borders
-* [show-desktop](https://github.com/EduuG/classic-hypr-suite/tree/main/show-desktop) — Bash scripts for "show desktop" via Waybar
+### Grid Layout
 
-## Roadmap
+The desktop grid handles:
 
-Planned features, in no particular order:
-
-* [ ] External drag-and-drop (drag files into other apps)
-* [ ] "Open with…" context menu entry
-* [ ] Built-in wallpaper manager
-* [ ] Desktop widgets (clock, weather, etc.)
-* [ ] Trash notifications with undo
-* [ ] Per-monitor files support
+* Manual icon positioning
+* Drag-and-drop
+* Cell occupation
+* Multi-selection
+* Icon resizing
+* Automatic snapping to available cells
 
 ## Notes
 
-This project is a personal fork and update of Oh My Desktop, mainly maintained for personal use and compatibility with my Hyprland setup.
+This project is mainly maintained for my personal Hyprland setup and experimentation.
+
+If you like this project, consider giving the original author a ⭐ on [Oh My Desktop](https://github.com/EduuG/oh-my-desktop). It's genuinely a really good project, and this project wouldn't exist without it.
+
+---
+
+**What's so silly about it?**
+
+Nothing.
+
+**That's the whole point. :D**

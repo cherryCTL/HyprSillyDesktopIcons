@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.20)
-project(OhMyDesktop VERSION 1.0 LANGUAGES CXX)
+project(HyprSillyDesktopIcons VERSION 1.0 LANGUAGES CXX)
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -41,15 +41,15 @@ set(RESOURCES
     assets/resources.qrc
 )
 
-add_executable(oh-my-desktop ${SOURCES} ${HEADERS} ${RESOURCES})
+add_executable(HyprSillyDesktopIcons ${SOURCES} ${HEADERS} ${RESOURCES})
 
-target_include_directories(oh-my-desktop PRIVATE src)
+target_include_directories(HyprSillyDesktopIcons PRIVATE src)
 
-target_link_libraries(oh-my-desktop PRIVATE
+target_link_libraries(HyprSillyDesktopIcons PRIVATE
     Qt6::Core
     Qt6::Gui
     Qt6::Widgets
     LayerShellQt::Interface
 )
 
-install(TARGETS oh-my-desktop)
+install(TARGETS HyprSillyDesktopIcons)

@@ -46,7 +46,7 @@ void DesktopWindow::setupLayerShell()
     lsWindow->setExclusiveZone(-1);
     lsWindow->setKeyboardInteractivity(LSWindow::KeyboardInteractivityOnDemand);
     lsWindow->setActivateOnShow(false);
-    lsWindow->setScope("oh-my-desktop-desktop");
+    lsWindow->setScope("hyprsillydesktopicons-desktop");
     lsWindow->setScreen(m_screen);
 }
 

@@ -1157,7 +1157,7 @@ void DesktopScene::showDesktopContextMenuAt(const QPoint &scenePos)
             this, "Log Out", "End the current desktop session?",
             QMessageBox::Yes | QMessageBox::No);
         if (btn == QMessageBox::Yes) {
-            if (!QProcess::startDetached("hyprctl", {"dispatch", "exit"}))
+            if (!QProcess::startDetached("hyprctl", {"dispatch", "hl.dsp.exit()"}))
                 qWarning() << "[IPC] failed to dispatch exit";
         }
     });

@@ -35,14 +35,33 @@ bool canUseHyprlandFloatDispatch()
     return hasHyprctl;
 }
 
+QString luaStringLiteral(const QString &value)
+{
+    QString escaped = value;
+    escaped.replace('\\', "\\\\");
+    escaped.replace('\'', "\\'");
+    escaped.replace('\n', "\\n");
+    escaped.replace('\r', "\\r");
+    escaped.replace('\t', "\\t");
+    return '\'' + escaped + '\'';
+}
+
 bool startWithHyprlandFloatRule(const QString &command)
 {
-    const QString rules = QString("[float; size %1 %1; center 1] ")
-                              .arg(kWindowedLaunchSize);
-    bool ok = QProcess::startDetached("hyprctl",
-                                   {"dispatch", "exec", rules + command});
+    const QString lua = QStringLiteral(
+        "hl.dsp.exec_cmd(%1, { float = true, size = { %2, %2 }, center = true })")
+        .arg(luaStringLiteral(command))
+        .arg(kWindowedLaunchSize);
+
+    const bool ok = QProcess::startDetached(
+        "hyprctl",
+        {"dispatch", lua}
+    );
+
     if (!ok)
-        qWarning() << "[IPC] hyprctl dispatch exec failed for:" << command.left(80);
+        qWarning() << "[IPC] hyprctl dispatch hl.dsp.exec_cmd failed for:"
+                   << command.left(80);
+
     return ok;
 }
 

@@ -8,8 +8,8 @@
 int main(int argc, char *argv[])
 {
     QApplication app(argc, argv);
-    app.setApplicationName("Oh My Desktop");
-    app.setOrganizationName("Oh My Desktop");
+    app.setApplicationName("HyprSillyDesktopIcons");
+    app.setOrganizationName("HyprSillyDesktopIcons");
     app.setQuitOnLastWindowClosed(false);
 
     // Load retro stylesheet
