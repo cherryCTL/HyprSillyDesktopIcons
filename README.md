@@ -78,6 +78,18 @@ end)
 
 `hl.exec_cmd()` starts the process asynchronously, so no `&` or `disown` is required.
 
+### Lua Startup
+
+For unknown reasons, `HyprSillyDesktopIcons` did not start correctly from Lua's startup event on my system when using the normal command. I was able to fix it by adding a 2-second delay. I suspect the startup order after Noctalia's shell may be causing this issue.
+
+If you experience the same problem, use this command in your Lua startup:
+
+```lua
+hl.exec_cmd("sleep 2 && HyprSillyDesktopIcons")
+```
+
+
+
 ## Features
 
 ### Core
