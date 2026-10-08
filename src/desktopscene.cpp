@@ -73,6 +73,9 @@ DesktopScene::DesktopScene(QScreen *screen, QWidget *parent)
         m_showHome     = cfg.value("ui/showHome",     false).toBool();
         m_fontFamily   = cfg.value("ui/fontFamily",   "MS Sans Serif").toString();
         m_fontSize     = cfg.value("ui/fontSize",     kDefaultFontSize).toInt();
+        m_launchFloating  = cfg.value("ui/launchFloating",  false).toBool();
+        m_floatingWidth   = cfg.value("ui/floatingWidth",   720).toInt();
+        m_floatingHeight  = cfg.value("ui/floatingHeight",  720).toInt();
     }
 
     // Query Hyprland for the actual reserved (panel) areas of this screen.
@@ -344,7 +347,13 @@ void DesktopScene::openIconFromKeyboard(DesktopIcon *icon)
             default: break;
         }
         if (!uri.isEmpty())
-            LauncherUtil::startDetachedWindowedProgram("gio", {"open", uri});
+           LauncherUtil::startDetachedWindowedProgram(
+                "gio",
+                {"open", uri},
+                m_launchFloating,
+                m_floatingWidth,
+                m_floatingHeight
+            );
         return;
     }
 
@@ -469,6 +478,7 @@ void DesktopScene::rebuildGridPositions()
     }
 }
 
+
 void DesktopScene::connectIconSignals(DesktopIcon* icon, bool isVirtual)
 {
     connect(icon, &DesktopIcon::pressed,       this, &DesktopScene::onIconPressed);
@@ -476,17 +486,38 @@ void DesktopScene::connectIconSignals(DesktopIcon* icon, bool isVirtual)
     connect(icon, &DesktopIcon::dragStarted,   this, &DesktopScene::onIconDragStarted);
     connect(icon, &DesktopIcon::dragging,      this, &DesktopScene::onIconDragging);
     connect(icon, &DesktopIcon::moved,         this, &DesktopScene::onIconMoved);
-    connect(icon, &DesktopIcon::iconContextMenuRequested, this, &DesktopScene::onIconContextMenuRequested);
+    connect(icon, &DesktopIcon::iconContextMenuRequested,
+            this, &DesktopScene::onIconContextMenuRequested);
+
     if (isVirtual) {
-        connect(icon, &DesktopIcon::fileDropped, this, &DesktopScene::onFileDroppedOnTrash);
+        connect(icon, &DesktopIcon::fileDropped,
+                this, &DesktopScene::onFileDroppedOnTrash);
     } else {
-        connect(icon, &DesktopIcon::openRequested,  this, &DesktopScene::onOpenRequested);
-        connect(icon, &DesktopIcon::renameRequested,this, &DesktopScene::onRenameRequested);
-        connect(icon, &DesktopIcon::deleteRequested,this, &DesktopScene::onDeleteRequested);
+        connect(icon, &DesktopIcon::openRequested,
+                this, &DesktopScene::onOpenRequested);
+
+        connect(icon, &DesktopIcon::openCommandRequested, this,
+            [this](const QString &command) {
+                LauncherUtil::startDetachedWindowedProgram(
+                    "sh",
+                    {"-lc", command},
+                    m_launchFloating,
+                    m_floatingWidth,
+                    m_floatingHeight
+                );
+            });
+
+        connect(icon, &DesktopIcon::renameRequested,
+                this, &DesktopScene::onRenameRequested);
+
+        connect(icon, &DesktopIcon::deleteRequested,
+                this, &DesktopScene::onDeleteRequested);
     }
+
     icon->installEventFilter(this);
     icon->setLabelFont(m_fontFamily, m_fontSize);
 }
+
 
 void DesktopScene::addNewIcons(const QFileInfoList& entries)
 {
@@ -714,7 +745,13 @@ void DesktopScene::onOpenRequested(const QFileInfo &fileInfo)
                             // Insert the file path as a single argument
                             parts << path;
                             if (!parts.isEmpty()) {
-                                LauncherUtil::startDetachedWindowedProgram(parts[0], parts.mid(1));
+                                LauncherUtil::startDetachedWindowedProgram(
+                                                parts[0],
+                                                parts.mid(1),
+                                                m_launchFloating,
+                                                m_floatingWidth,
+                                                m_floatingHeight
+                                            );
                                 return;
                             }
                         }
@@ -729,15 +766,55 @@ void DesktopScene::onOpenRequested(const QFileInfo &fileInfo)
                                     "xed", "pluma", "micro", "nvim", "vim",
                                     "nano", "code" }) {
             if (!QStandardPaths::findExecutable(editor).isEmpty()) {
-                LauncherUtil::startDetachedWindowedProgram(editor, { path });
+               LauncherUtil::startDetachedWindowedProgram(
+                editor,
+                { path },
+                m_launchFloating,
+                m_floatingWidth,
+                m_floatingHeight
+            );
                 return;
             }
         }
         return;
     }
 
-    // Default: open with xdg-open
-    LauncherUtil::startDetachedWindowedProgram("xdg-open", { path });
+
+    // Directly launch the file manager for directories so
+    // Hyprland floating settings apply to the actual window.
+    if (fileInfo.isDir()) {
+        const QStringList fileManagers = {
+            "thunar",
+            "nemo",
+            "dolphin",
+            "nautilus",
+            "caja",
+            "pcmanfm",
+            "pcmanfm-qt"
+        };
+
+        for (const QString &fileManager : fileManagers) {
+            if (!QStandardPaths::findExecutable(fileManager).isEmpty()) {
+                LauncherUtil::startDetachedWindowedProgram(
+                    fileManager,
+                    { path },
+                    m_launchFloating,
+                    m_floatingWidth,
+                    m_floatingHeight
+                );
+                return;
+            }
+        }
+    }
+
+    // Fallback
+    LauncherUtil::startDetachedWindowedProgram(
+        "xdg-open",
+        { path },
+        m_launchFloating,
+        m_floatingWidth,
+        m_floatingHeight
+    );
 }
 
 void DesktopScene::onRenameRequested(DesktopIcon *icon)
@@ -1334,7 +1411,13 @@ void DesktopScene::onIconContextMenuRequested(DesktopIcon *icon, QPoint scenePos
                 default: break;
             }
             if (!uri.isEmpty())
-                LauncherUtil::startDetachedWindowedProgram("gio", {"open", uri});
+                LauncherUtil::startDetachedWindowedProgram(
+                    "gio",
+                    {"open", uri},
+                    m_launchFloating,
+                    m_floatingWidth,
+                    m_floatingHeight
+                );
         });
         if (icon->virtualType() == DesktopIcon::VirtualType::Trash) {
             menu->addSep();
@@ -1823,6 +1906,9 @@ void DesktopScene::onShowProperties()
     const bool oldHome     = m_showHome;
     const QString oldFontFamily = m_fontFamily;
     const int oldFontSize = m_fontSize;
+    const bool oldLaunchFloating = m_launchFloating;
+    const int oldFloatingWidth = m_floatingWidth;
+    const int oldFloatingHeight = m_floatingHeight;
 
     PropertiesDialog::Settings s;
     s.iconSize    = m_iconSize;
@@ -1835,6 +1921,9 @@ void DesktopScene::onShowProperties()
     s.showHome    = m_showHome;
     s.fontFamily  = m_fontFamily;
     s.fontSize    = m_fontSize;
+    s.launchFloating = m_launchFloating;
+    s.floatingWidth  = m_floatingWidth;
+    s.floatingHeight = m_floatingHeight;
 
     PropertiesDialog dlg(s, nullptr);
 
@@ -1891,6 +1980,9 @@ void DesktopScene::onShowProperties()
         m_showHome    = oldHome;
         m_fontFamily  = oldFontFamily;
         m_fontSize    = oldFontSize;
+        m_launchFloating = oldLaunchFloating;
+        m_floatingWidth  = oldFloatingWidth;
+        m_floatingHeight = oldFloatingHeight;
         applyIconSize(oldSize);
         applyFont(oldFontFamily, oldFontSize);
         return;
@@ -1907,6 +1999,9 @@ void DesktopScene::onShowProperties()
     m_showHome     = ns.showHome;
     m_fontFamily   = ns.fontFamily;
     m_fontSize     = ns.fontSize;
+    m_launchFloating = ns.launchFloating;
+    m_floatingWidth  = ns.floatingWidth;
+    m_floatingHeight = ns.floatingHeight;
 
     QSettings cfg(configPath(), QSettings::IniFormat);
     cfg.setValue("ui/iconSize",     m_iconSize);
@@ -1918,6 +2013,9 @@ void DesktopScene::onShowProperties()
     cfg.setValue("ui/showHome",     m_showHome);
     cfg.setValue("ui/fontFamily",   m_fontFamily);
     cfg.setValue("ui/fontSize",     m_fontSize);
+    cfg.setValue("ui/launchFloating", m_launchFloating);
+    cfg.setValue("ui/floatingWidth",  m_floatingWidth);
+    cfg.setValue("ui/floatingHeight", m_floatingHeight);
     cfg.sync();
 
     savePositions();

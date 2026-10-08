@@ -46,12 +46,13 @@ QString luaStringLiteral(const QString &value)
     return '\'' + escaped + '\'';
 }
 
-bool startWithHyprlandFloatRule(const QString &command)
+bool startWithHyprlandFloatRule(const QString &command, int width, int height)
 {
     const QString lua = QStringLiteral(
-        "hl.dsp.exec_cmd(%1, { float = true, size = { %2, %2 }, center = true })")
+        "hl.dsp.exec_cmd(%1, { float = true, size = { %2, %3 }, center = true })")
         .arg(luaStringLiteral(command))
-        .arg(kWindowedLaunchSize);
+        .arg(width)
+        .arg(height);
 
     const bool ok = QProcess::startDetached(
         "hyprctl",
@@ -73,20 +74,25 @@ bool startDetachedWindowedCommand(const QString &command)
     if (trimmed.isEmpty())
         return false;
 
-    if (canUseHyprlandFloatDispatch() && startWithHyprlandFloatRule(trimmed))
+    if (canUseHyprlandFloatDispatch() &&
+    startWithHyprlandFloatRule(trimmed, kWindowedLaunchSize, kWindowedLaunchSize))
         return true;
 
     return QProcess::startDetached("sh", {"-lc", trimmed});
 }
 
-bool startDetachedWindowedProgram(const QString &program, const QStringList &arguments)
+bool startDetachedWindowedProgram(const QString &program,
+                                  const QStringList &arguments,
+                                  bool floating,
+                                  int width,
+                                  int height)
 {
     if (program.trimmed().isEmpty())
         return false;
 
-    if (canUseHyprlandFloatDispatch()) {
+    if (floating && canUseHyprlandFloatDispatch()) {
         const QString command = joinCommand(program, arguments);
-        if (startWithHyprlandFloatRule(command))
+        if (startWithHyprlandFloatRule(command, width, height))
             return true;
     }
 

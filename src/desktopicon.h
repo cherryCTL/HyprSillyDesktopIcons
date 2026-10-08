@@ -54,6 +54,7 @@ signals:
     void dragging(DesktopIcon *icon, QPoint scenePos);
     void moved(DesktopIcon *icon, QPoint scenePos);
     void openRequested(const QFileInfo &fileInfo);
+    void openCommandRequested(const QString &command);
     void renameRequested(DesktopIcon *icon);
     void deleteRequested(DesktopIcon *icon);
     void iconContextMenuRequested(DesktopIcon *icon, QPoint scenePos);

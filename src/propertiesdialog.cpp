@@ -203,15 +203,15 @@ PropertiesDialog::PropertiesDialog(const Settings &s, QWidget *parent)
     auto *desktopLayout = new QVBoxLayout(desktopGroup);
     desktopLayout->setSpacing(6);
 
-    m_showTrashCheck = new QCheckBox("Recycle Bin", desktopGroup);
+    m_showTrashCheck = new QCheckBox("Trash", desktopGroup);
     m_showTrashCheck->setChecked(s.showTrash);
     desktopLayout->addWidget(m_showTrashCheck);
 
-    m_showComputerCheck = new QCheckBox("My Computer", desktopGroup);
+    m_showComputerCheck = new QCheckBox("Root", desktopGroup);
     m_showComputerCheck->setChecked(s.showComputer);
     desktopLayout->addWidget(m_showComputerCheck);
 
-    m_showHomeCheck = new QCheckBox("My Documents", desktopGroup);
+    m_showHomeCheck = new QCheckBox("Home", desktopGroup);
     m_showHomeCheck->setChecked(s.showHome);
     desktopLayout->addWidget(m_showHomeCheck);
     generalLayout->addWidget(desktopGroup);
@@ -231,6 +231,30 @@ PropertiesDialog::PropertiesDialog(const Settings &s, QWidget *parent)
     m_sortCombo->setCurrentIndex(s.sortOrder);
     arrLayout->addWidget(m_sortCombo, 1, 1);
     generalLayout->addWidget(arrGroup);
+    auto *launchGroup = new QGroupBox("Window Launching", generalTab);
+    auto *launchLayout = new QGridLayout(launchGroup);
+    launchLayout->setColumnStretch(1, 1);
+    launchLayout->setVerticalSpacing(8);
+
+    m_launchFloatingCheck = new QCheckBox("Launch windows floating", launchGroup);
+    m_launchFloatingCheck->setChecked(s.launchFloating);
+    launchLayout->addWidget(m_launchFloatingCheck, 0, 0, 1, 2);
+
+    launchLayout->addWidget(new QLabel("Floating window width:"), 1, 0);
+    m_floatingWidthSpin = new QSpinBox(launchGroup);
+    m_floatingWidthSpin->setRange(100, 3840);
+    m_floatingWidthSpin->setValue(s.floatingWidth);
+    m_floatingWidthSpin->setSuffix(" px");
+    launchLayout->addWidget(m_floatingWidthSpin, 1, 1);
+
+    launchLayout->addWidget(new QLabel("Floating window height:"), 2, 0);
+    m_floatingHeightSpin = new QSpinBox(launchGroup);
+    m_floatingHeightSpin->setRange(100, 2160);
+    m_floatingHeightSpin->setValue(s.floatingHeight);
+    m_floatingHeightSpin->setSuffix(" px");
+    launchLayout->addWidget(m_floatingHeightSpin, 2, 1);
+
+    generalLayout->addWidget(launchGroup);
     generalLayout->addStretch();
 
     auto *applicationsTab = new QWidget(tabs);
@@ -385,6 +409,9 @@ PropertiesDialog::Settings PropertiesDialog::currentSettings() const
     s.showComputer = m_showComputerCheck->isChecked();
     s.showHome     = m_showHomeCheck->isChecked();
     s.fontFamily   = m_fontFamilyCombo->currentText();
+    s.launchFloating   = m_launchFloatingCheck->isChecked();
+    s.floatingWidth    = m_floatingWidthSpin->value();
+    s.floatingHeight   = m_floatingHeightSpin->value();
     s.fontSize     = m_fontSizeSpin->value();
     return s;
 }

@@ -153,6 +153,9 @@ private:
     bool                m_showPreview = true;
     QString             m_fontFamily  = "MS Sans Serif";
     int                 m_fontSize    = 8;
+    bool                m_launchFloating  = false;
+    int                 m_floatingWidth   = 720;
+    int                 m_floatingHeight  = 720;
 
     QWidget            *m_ctxMenu        = nullptr;
     QWidget            *m_ctxArrangeMenu = nullptr;

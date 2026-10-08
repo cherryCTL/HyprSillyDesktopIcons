@@ -186,10 +186,37 @@ This project is mainly maintained for my personal Hyprland setup and experimenta
 
 If you like this project, consider giving the original author a ⭐ on [Oh My Desktop](https://github.com/EduuG/oh-my-desktop). It's genuinely a really good project, and this project wouldn't exist without it.
 
+
 ---
 
-**What's so silly about it?**
+## Added Features & Bug Fixes in v1.1
 
-Nothing.
+### Added Features
 
-**That's the whole point. :D**
+* **Configurable window launching:** Added a setting to choose whether launched applications should open as floating windows or use the normal tiling layout.
+* **Custom floating window dimensions:** Added configurable width and height settings for floating application windows.
+* **Improved application launch handling:** Updated application and file-opening logic to better respect the configured window behavior.
+* **File manager support:** Added direct file manager launching with support for several common Linux file managers.
+* **Virtual desktop icons:** Improved handling of the Trash, Root, and Home desktop icons.
+* **Installer improvements:** Added an interactive installer that can detect available binaries, report their versions, build from source, install the application, and uninstall it.
+
+### Fixed Issues
+
+* Improved launch behavior for applications opened through desktop icons.
+* Fixed several application and file-opening paths that did not correctly use the configured launch settings.
+* Improved handling of virtual desktop icons and file manager launch requests.
+
+## Known Issues
+
+The following issues are still present in v1.1 and are planned to be addressed in a future release.
+
+* **File manager window behavior:** When a file manager such as Thunar is already open, double-clicking desktop icons associated with the file manager may open the resulting window maximized or tiled, regardless of the configured floating window setting.
+* **Virtual icon window dimensions:** The Trash, Root, and Home icons may open their windows as floating windows with a fixed size of 720 × 720 pixels, instead of respecting the configured floating window dimensions and launch behavior.
+
+## Next Release Planning
+
+The following improvements are planned for the next release:
+
+* **Fix file manager window handling:** Ensure that opening files and directories while a file manager is already running respects the configured floating or tiling behavior.
+* **Fix virtual icon launch settings:** Make the Trash, Root, and Home icons consistently respect the configured window behavior and floating dimensions.
+* **Add a top screen boundary for desktop icons:** Prevent icons from being dragged underneath panels positioned at the top of the screen, similar to the existing handling of reserved screen areas.

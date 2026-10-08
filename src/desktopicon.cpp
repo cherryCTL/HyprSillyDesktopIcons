@@ -162,9 +162,9 @@ DesktopIcon::DesktopIcon(VirtualType type, int iconSize, QWidget *parent)
 QString DesktopIcon::virtualLabel() const
 {
     switch (m_virtualType) {
-        case VirtualType::Trash:    return "Recycle Bin";
-        case VirtualType::Computer: return "My Computer";
-        case VirtualType::Home:     return "My Documents";
+        case VirtualType::Trash:    return "Trash";
+        case VirtualType::Computer: return "Root";
+        case VirtualType::Home:     return "Home";
         default:                    return {};
     }
 }
@@ -544,7 +544,7 @@ void DesktopIcon::mouseDoubleClickEvent(QMouseEvent *event)
             exec.replace(QRegularExpression("%[fFuUdDnNickvm]"), "");
             exec = exec.trimmed();
             if (!exec.isEmpty()) {
-                LauncherUtil::startDetachedWindowedCommand(exec);
+                emit openCommandRequested(exec);
             }
         } else {
             emit openRequested(m_fileInfo);

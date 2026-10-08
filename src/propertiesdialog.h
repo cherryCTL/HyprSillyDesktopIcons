@@ -27,6 +27,9 @@ public:
         bool showHome    = false;
         QString fontFamily = "MS Sans Serif";
         int  fontSize    = 8;
+        bool launchFloating = false;
+        int  floatingWidth = 720;
+        int  floatingHeight = 720;
     };
 
     explicit PropertiesDialog(const Settings &s, QWidget *parent = nullptr);
@@ -53,6 +56,9 @@ private:
     QCheckBox *m_showTrashCheck;
     QCheckBox *m_showComputerCheck;
     QCheckBox *m_showHomeCheck;
+    QCheckBox *m_launchFloatingCheck;
+    QSpinBox  *m_floatingWidthSpin;
+    QSpinBox  *m_floatingHeightSpin;
     QComboBox *m_sortCombo;
     QLineEdit *m_appSearchEdit;
     QListWidget *m_appList;
